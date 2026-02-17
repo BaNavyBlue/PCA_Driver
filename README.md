@@ -36,3 +36,4 @@ You should see an entry of 0x40, which is the default address of the PCA9685. If
 You must have root permission to use the I2C bus, ie you must use sudo. To run the example:
 
 <blockquote>$ sudo ./servoExample.cpp</blockquote>
+# PCA_Driver
