@@ -26,10 +26,13 @@ uint16_t calculate12BitTicks(float inPeriod, PCA9685* pcaCont);
 void setup()
 {
   Serial.begin(115200);
+
+  pinMode(SDA, INPUT_PULLUP); // Enable Arduiono 50kohm pullup resistor on SDA
+  pinMode(SCL, INPUT_PULLUP); // Enable Arduiono 50kohm pullup resistor on SCL
+
   Wire.begin();
   delay(2000);
-  digitalWrite(SDA, 1); // Enable Arduiono 50kohm pullup resistor on SDA
-  digitalWrite(SCL, 1); // Enable Arduiono 50kohm pullup resistor on SCL
+
 
   Serial.println("Scanning...");
 
