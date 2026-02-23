@@ -1,5 +1,9 @@
 #include <Arduino.h>
 #include <PCA_Driver.h>
+#include <Mx2125.h>
+
+
+
 
 // Oldschool C style Macro Defines
 #define X1_PIN A0
@@ -8,23 +12,33 @@
 #define Y2_PIN A3
 #define SWITCH1_PIN D4
 #define SWITCH2_PIN D2
+#define ACC_XAXIS 5
+#define ACC_YAXIS 6
 
+#define LARGE_STEP 8
+#define MED_STEP 4
+#define SMALL_STEP 2
 
 // New School C++ style global constants
 const uint8_t i2cAddress = 0x40;
 const uint8_t PWM_CHANNELS = 6;
 
+const int PWM_BIAS = 45;
+
 // These periods in seconds are based of the DIY MORE Extended Range Servo
 const float MIN_PERIOD = 0.0005;
 const float MID_PERIOD = 0.0015;
-const float MAX_PERIOD = 0.0025;
+const float MAX_PERIOD = 0.00258;
+const float ANGLE_RANGE = 188.0;
 
 const float EXTERNAL_CLOCK = 50000000.0; //50MHz
 const float PWM_FREQ = 329.9198; // Frequency Calculated from Prescaler math.
+// const float PWM_FREQ = 50.0;
 
 
 
 // Global Variables
+Mx2125  Accelerometer(ACC_XAXIS, ACC_YAXIS, A5);
 PCA9685* pcaController; // PWM Controller pointer
 
 
@@ -44,6 +58,8 @@ uint16_t pwm_pos[PWM_CHANNELS]; // This Array is for current servo position
 // Function Prototypes
 uint16_t calculate12BitTicks(float inPeriod, PCA9685* pcaCont);
 void set_pos(uint16_t axis_value, uint8_t channel);
+void find_starting_angle_and_home(void);
+float calculated_angle(uint8_t channel);
 
 void setup()
 {
@@ -71,8 +87,10 @@ void setup()
   pinMode(SWITCH2_PIN, INPUT_PULLUP);
 
   pcaController = new PCA9685(i2cAddress, EXTERNAL_CLOCK); // set to 50MHz External Clock
+  pcaController->sleepPCA();
   pcaController->setPWMFrequency(PWM_FREQ);  // Frequency Calculated from Prescaler math.
-
+  pcaController->setPWMBias(PWM_BIAS);
+  //pcaController->setAllPWM(0, 0);
   for (int i = 0; i < PWM_CHANNELS; ++i){
       pwm_min[i] = calculate12BitTicks(MIN_PERIOD, pcaController);
       pwm_mid[i] = calculate12BitTicks(MID_PERIOD, pcaController);
@@ -85,11 +103,16 @@ void setup()
   Serial.print(", mid: "); Serial.print(pwm_mid[0]);
   Serial.print(", max: "); Serial.print(pwm_max[0]);
   Serial.print(", 12BitRange: "); Serial.print(pwm_12BitRange[0]);
-  Serial.print(", Degree Step Size: "); Serial.println(180.0/((float)pwm_max[0]));
+  Serial.print(", Degree Step Size: "); Serial.println(ANGLE_RANGE/((float)pwm_12BitRange[0]));
 
-  pcaController->setAllPWM(0, pwm_mid[0]);
+
   delay(1000);
+  find_starting_angle_and_home();
+  delay(1000);
+  
 }
+
+uint16_t prev_pos = 0;
 
 void loop()
 {
@@ -98,11 +121,18 @@ void loop()
   uint16_t y1 = analogRead(Y1_PIN);
   uint16_t x2 = analogRead(X2_PIN);
   uint16_t y2 = analogRead(Y2_PIN);
-
+  // prev_pos = pwm_pos[1];
   set_pos(x1, 0);
   set_pos(y1, 1);
   set_pos(x2, 2);
   set_pos(y2, 3);
+
+  // if(prev_pos != pwm_pos[1]){
+  //   uint16_t angle = Accelerometer.mx_rotation();
+  //   Serial.print("Angle: "); Serial.print(angle);
+  //   Serial.print( ", current ticks: "); Serial.print(pwm_pos[1]);
+  //   Serial.print(", Calculated Angle: "); Serial.println((ANGLE_RANGE/pwm_12BitRange[1])*(pwm_pos[1] - pwm_min[1]));
+  // }
 }
 
 uint16_t calculate12BitTicks(float inPeriod, PCA9685* pcaCont)
@@ -120,11 +150,11 @@ uint16_t calculate12BitTicks(float inPeriod, PCA9685* pcaCont)
 void set_pos(uint16_t axis_value, uint8_t channel){
   if(pwm_pos[channel] <= pwm_max[channel]){
     if(axis_value > 900){
-      pwm_pos[channel] += 16;
+      pwm_pos[channel] += LARGE_STEP;
     } else if( axis_value > 800){
-      pwm_pos[channel] += 8;
+      pwm_pos[channel] += MED_STEP;
     } else if(axis_value > 700){
-      pwm_pos[channel] += 4;
+      pwm_pos[channel] += SMALL_STEP;
     } else if(axis_value > 600){
       pwm_pos[channel]++;
     }
@@ -133,15 +163,45 @@ void set_pos(uint16_t axis_value, uint8_t channel){
 
   if(pwm_pos[channel] >= pwm_min[channel]){
     if(axis_value < 100){
-      pwm_pos[channel] -= 16;
+      pwm_pos[channel] -= LARGE_STEP;
     } else if( axis_value < 200){
-      pwm_pos[channel] -= 8;
+      pwm_pos[channel] -= MED_STEP;
     } else if(axis_value < 300){
-      pwm_pos[channel] -= 4;
+      pwm_pos[channel] -= SMALL_STEP;
     } else if(axis_value < 400){
       pwm_pos[channel]--;
     }
     if(pwm_pos[channel] < pwm_min[channel]) pwm_pos[channel] = pwm_min[channel];
   }
   pcaController->setPWM(channel, 0, pwm_pos[channel]);
+}
+
+
+void find_starting_angle_and_home(void){
+    uint16_t angle = Accelerometer.mx_rotation();
+    if( angle > 270){
+      angle = 0;
+    } else if ( angle > 180){
+      angle = 180;
+    }
+    pwm_pos[1] = pwm_min[1] + lround(angle/(ANGLE_RANGE/pwm_12BitRange[1]));
+    Serial.print("Angle: "); Serial.print(angle);
+    Serial.print(" what are ticks: "); Serial.println(pwm_pos[1]);
+    pcaController->setPWM(1, 0, pwm_pos[1]);
+    pcaController->wakePCA();
+    int calc_angle = lround(calculated_angle(1));
+    while(calc_angle != 90){
+      if(calc_angle < 90){
+        pwm_pos[1] += 1;
+      } else {
+        pwm_pos[1] -= 1;
+      }
+      pcaController->setPWM(1, 0, pwm_pos[1]);
+      calc_angle = lround(calculated_angle(1));
+
+    }
+}
+
+float calculated_angle(uint8_t channel){
+  return (ANGLE_RANGE/pwm_12BitRange[channel])*(pwm_pos[channel] - pwm_min[channel]);
 }
