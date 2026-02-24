@@ -31,6 +31,9 @@ const float MID_PERIOD = 0.0015;
 const float MAX_PERIOD = 0.00258;
 const float ANGLE_RANGE = 188.0;
 
+const uint16_t CLAW_MIN_TICKS = 1740;
+const uint16_t CLAW_MAX_TICKS = 2842;
+
 const float EXTERNAL_CLOCK = 50000000.0; //50MHz
 const float PWM_FREQ = 329.9198; // Frequency Calculated from Prescaler math.
 // const float PWM_FREQ = 50.0;
@@ -98,6 +101,8 @@ void setup()
       pwm_pos[i] = calculate12BitTicks(MID_PERIOD, pcaController);
       pwm_12BitRange[i] = pwm_max[i] - pwm_min[i]; 
   }
+  pwm_min[5] = CLAW_MIN_TICKS;
+  pwm_max[5] = CLAW_MAX_TICKS;
 
   Serial.print("min: "); Serial.print(pwm_min[0]);
   Serial.print(", mid: "); Serial.print(pwm_mid[0]);
@@ -121,12 +126,13 @@ void loop()
   uint16_t y1 = analogRead(Y1_PIN);
   uint16_t x2 = analogRead(X2_PIN);
   uint16_t y2 = analogRead(Y2_PIN);
-  // prev_pos = pwm_pos[1];
+
   set_pos(x1, 0);
   set_pos(y1, 1);
   set_pos(x2, 2);
   set_pos(y2, 3);
-
+  /* Uncomment to Demonstrate how much Serial Print commands slow down controls */ 
+  // prev_pos = pwm_pos[1];
   // if(prev_pos != pwm_pos[1]){
   //   uint16_t angle = Accelerometer.mx_rotation();
   //   Serial.print("Angle: "); Serial.print(angle);
