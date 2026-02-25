@@ -55,16 +55,16 @@ PCA9685* pcaController; // PWM Controller pointer
 FspTimer Timer;
 volatile uint8_t button1 = 1;
 volatile uint8_t button2 = 1;
-volatile uint8_t button1_counts = 0; // Shared variable
-volatile uint8_t button2_counts = 0;
+volatile int button1_counts = 0; // Shared variable
+volatile int button2_counts = 0;
 volatile uint8_t b1_mode = 0;
 volatile uint8_t b2_mode = 0;
 
 void IRQ_HIT(timer_callback_args_t *p_args) {
     if(!button1){
-      if(button1_counts >= 3){
+      if(button1_counts >= 2){
         b1_mode = !b1_mode;
-        button1_counts = 0;
+        button1_counts = -4;
       } else {
         button1_counts++;
       }
@@ -73,9 +73,9 @@ void IRQ_HIT(timer_callback_args_t *p_args) {
     }
 
     if(!button2){
-      if(button2_counts >= 3){
+      if(button2_counts >= 2){
         b2_mode = !b2_mode;
-        button2_counts = 0;
+        button2_counts = -4;
       } else {
         button2_counts++;
       }
