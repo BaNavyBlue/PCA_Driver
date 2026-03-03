@@ -70,6 +70,8 @@ volatile bool requestNext = false;
 uint8_t b1_prev = 1;
 uint8_t b2_prev = 1;
 
+
+/* This is an interrupt timer for handling button push events*/
 void IRQ_HIT(timer_callback_args_t *p_args) {
     if(!button1){
       if(button1_counts >= 2){
@@ -114,7 +116,7 @@ uint16_t pwm_max[PWM_CHANNELS];
 uint16_t pwm_12BitRange[PWM_CHANNELS]; // this Array is for range in 12bit ticks
 uint16_t pwm_pos[PWM_CHANNELS]; // This Array is for current servo position
 
-// Function Prototypes
+// Function Prototypes. All of these functions are defined bellow main loop
 uint16_t calculate12BitTicks(float inPeriod, PCA9685* pcaCont);
 void set_pos(uint16_t axis_value, uint8_t channel);
 void find_starting_angle_and_home(void);
@@ -127,6 +129,8 @@ void setup()
   Wire.begin(); // Need For I2C
   delay(2000);
 
+
+  // This globals are for the interupt timer.
   uint8_t timerType = GPT_TIMER;
   int8_t channel = FspTimer::get_available_timer(timerType);
   
@@ -148,9 +152,10 @@ void setup()
   Timer.open(); // Required to make it work
   Timer.start();
 
-  digitalWrite(SDA, 1); // Enable Arduiono 50kohm pullup resistor on SDA
-  digitalWrite(SCL, 1); // Enable Arduiono 50kohm pullup resistor on SCL
+  //digitalWrite(SDA, 1); // Enable Arduiono 50kohm pullup resistor on SDA
+  //digitalWrite(SCL, 1); // Enable Arduiono 50kohm pullup resistor on SCL
 
+  // Section for the UNO R4 LED Matrix
   matrix.begin();
 
   matrix.beginDraw();
@@ -178,8 +183,8 @@ void setup()
       char found[16];
       sprintf(found, " 0x%x", addr);
       strcat(matMsg, found);
-      // Serial.print("Found device at 0x");
-      // Serial.println(addr, HEX);
+      Serial.print("Found device at 0x");
+      Serial.println(addr, HEX);
 
     }
   }
@@ -199,11 +204,14 @@ void setup()
   pinMode(SWITCH1_PIN, INPUT_PULLUP);
   pinMode(SWITCH2_PIN, INPUT_PULLUP);
 
+  // I decided to do a dynamic memory initialization of the PCA Controller.  No real reason other than C++
   pcaController = new PCA9685(i2cAddress, EXTERNAL_CLOCK); // set to 50MHz External Clock
   pcaController->sleepPCA();
   pcaController->setPWMFrequency(PWM_FREQ);  // Frequency Calculated from Prescaler math.
   pcaController->setPWMBias(PWM_BIAS);
   //pcaController->setAllPWM(0, 0);
+
+  // Set Min Mid and Max values for Servos. All the same by default except the Claw
   for (int i = 0; i < PWM_CHANNELS; ++i){
       pwm_min[i] = calculate12BitTicks(MIN_PERIOD, pcaController);
       pwm_mid[i] = calculate12BitTicks(MID_PERIOD, pcaController);
@@ -211,6 +219,7 @@ void setup()
       pwm_pos[i] = calculate12BitTicks(MID_PERIOD, pcaController);
       pwm_12BitRange[i] = pwm_max[i] - pwm_min[i]; 
   }
+  // Go back and set the claw values.
   pwm_min[5] = CLAW_MIN_TICKS;
   pwm_max[5] = CLAW_MAX_TICKS;
 
@@ -222,6 +231,7 @@ void setup()
 
 
   delay(1000);
+  // This function trys to set the main arm to 135degrees currently bassed off starting accelerometer position need to update for full home. 
   find_starting_angle_and_home();
   delay(1000);
   
@@ -231,14 +241,18 @@ uint16_t prev_pos = 0;
 
 void loop()
 {
-  // Read Analogue Pins
+  // Read Analog Pins
   uint16_t x1 = analogRead(X1_PIN);
   uint16_t y1 = analogRead(Y1_PIN);
   uint16_t x2 = analogRead(X2_PIN);
   uint16_t y2 = analogRead(Y2_PIN);
+
+  // Read Digital Pins
   button1 = digitalRead(SWITCH1_PIN);
   button2 = digitalRead(SWITCH2_PIN);
 
+  
+  // Check for current mode of opperation for servo access.
   set_pos(x1, ROTATE_BASE);
   switch(b1_mode){
     case 0:
@@ -275,6 +289,8 @@ void loop()
   /* This code is much faster than doing multiple Serial.print commands */
   // sprintf(serialMsg, "pos[0]: %u, pos[1]: %u, pos[2]: %u, pos[3]: %u, pos[4]: %u, pos[5]: %u\n", pwm_pos[0], pwm_pos[1], pwm_pos[2], pwm_pos[3], pwm_pos[4], pwm_pos[5]);
   // Serial.print(serialMsg);
+
+  // This code updates  led matrix display to show mode from left and right button press.
   if(b1_prev != b1_mode || b2_prev != b2_mode){
     set_mode_leds();
     b1_prev = b1_mode;
@@ -339,7 +355,9 @@ void find_starting_angle_and_home(void){
     pcaController->wakePCA();
 
     sprintf(matMsg, "PWR & B1");
-
+    
+    // This Do While loop sits and writes "PWR & B1" until the left controll button is pressed.
+    // Operator should Connect the power to the servo rail here then press the button.
     do{
       if(requestNext){
         requestNext = false;
@@ -354,6 +372,8 @@ void find_starting_angle_and_home(void){
     }while(digitalRead(SWITCH1_PIN));
 
     matrix.endDraw();
+
+    // gets the calculated angle of arm with accelerometer in degrees for first homing step
     int calc_angle = lround(calculated_angle(1));
     while(calc_angle != 135){
       if(calc_angle < 135){
