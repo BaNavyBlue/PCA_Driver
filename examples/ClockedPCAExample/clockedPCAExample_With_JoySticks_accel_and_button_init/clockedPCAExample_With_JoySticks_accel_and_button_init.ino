@@ -66,11 +66,15 @@ volatile uint8_t b1_mode = 0;
 volatile uint8_t b2_mode = 0;
 volatile bool requestNext = false;
 
+// setting these wrong so the mode led's will be set upon first main loop
+uint8_t b1_prev = 1;
+uint8_t b2_prev = 1;
+
 void IRQ_HIT(timer_callback_args_t *p_args) {
     if(!button1){
       if(button1_counts >= 2){
         b1_mode = !b1_mode;
-        button1_counts = -4;
+        button1_counts = -10;
       } else {
         button1_counts++;
       }
@@ -81,7 +85,7 @@ void IRQ_HIT(timer_callback_args_t *p_args) {
     if(!button2){
       if(button2_counts >= 2){
         b2_mode = !b2_mode;
-        button2_counts = -4;
+        button2_counts = -10;
       } else {
         button2_counts++;
       }
@@ -113,6 +117,7 @@ uint16_t pwm_pos[PWM_CHANNELS]; // This Array is for current servo position
 uint16_t calculate12BitTicks(float inPeriod, PCA9685* pcaCont);
 void set_pos(uint16_t axis_value, uint8_t channel);
 void find_starting_angle_and_home(void);
+void set_mode_leds(void);
 float calculated_angle(uint8_t channel);
 
 void setup()
@@ -252,6 +257,10 @@ void loop()
       set_pos(y2, CLAW);
       break;
   }
+
+
+  
+
   /* Uncomment to Demonstrate how much Serial Print commands slow down controls */ 
   // prev_pos = pwm_pos[1];
   // if(prev_pos != pwm_pos[1]){
@@ -260,6 +269,16 @@ void loop()
   //   Serial.print( ", current ticks: "); Serial.print(pwm_pos[1]);
   //   Serial.print(", Calculated Angle: "); Serial.println((ANGLE_RANGE/pwm_12BitRange[1])*(pwm_pos[1] - pwm_min[1]));
   // }
+
+
+  /* This code is much faster than doing multiple Serial.print commands */
+  // sprintf(serialMsg, "pos[0]: %u, pos[1]: %u, pos[2]: %u, pos[3]: %u, pos[4]: %u, pos[5]: %u\n", pwm_pos[0], pwm_pos[1], pwm_pos[2], pwm_pos[3], pwm_pos[4], pwm_pos[5]);
+  // Serial.print(serialMsg);
+  if(b1_prev != b1_mode || b2_prev != b2_mode){
+    set_mode_leds();
+    b1_prev = b1_mode;
+    b2_prev = b2_mode;
+  }
 
 }
 
@@ -349,4 +368,13 @@ void find_starting_angle_and_home(void){
 
 float calculated_angle(uint8_t channel){
   return (ANGLE_RANGE/pwm_12BitRange[channel])*(pwm_pos[channel] - pwm_min[channel]);
+}
+
+void set_mode_leds(void){
+  sprintf(matMsg, "%u|%u", b1_mode, b2_mode);
+        matrix.beginText(0, 1, 0xFFFFFF);
+        matrix.println(matMsg);
+        // matrix.endText(SCROLL_LEFT);
+        matrix.endText();
+        matrix.endDraw();
 }
