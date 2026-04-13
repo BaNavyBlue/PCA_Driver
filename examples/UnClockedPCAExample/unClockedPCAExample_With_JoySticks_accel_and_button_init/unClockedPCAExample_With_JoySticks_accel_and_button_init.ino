@@ -35,13 +35,14 @@ const int PWM_BIAS = 45;
 
 // These periods in seconds are based of the DIY MORE Extended Range Servo
 // Many other servos range is 1ms - 2ms with 1.5ms as the center.
+// Note the range is in seconds.
 const float MIN_PERIOD = 0.0005;
 const float MID_PERIOD = 0.0015;
-const float MAX_PERIOD = 0.00258;
+const float MAX_PERIOD = 0.00258;  // I added the extra .08ms you may want to remove.
 const float ANGLE_RANGE = 188.0;
 
-const uint16_t CLAW_MIN_TICKS = 1740;
-const uint16_t CLAW_MAX_TICKS = 2842;
+const float CLAW_MIN_DEGREES = 71.0; //1740;
+const float CLAW_MAX_DEGREES = 144.0; //2842;
 
 const float EXTERNAL_CLOCK = 25000000.0; //25MHz
 const float PWM_FREQ = 329.9198; // Frequency Calculated from Prescaler math.
@@ -221,8 +222,12 @@ void setup()
       pwm_12BitRange[i] = pwm_max[i] - pwm_min[i]; 
   }
   // Go back and set the claw values.
-  pwm_min[5] = CLAW_MIN_TICKS;
-  pwm_max[5] = CLAW_MAX_TICKS;
+  //
+  // This gives the min to max pwm range in amount of ticks per Degree
+  float ticks_per_deg = (pwm_max[0] - pwm_min[0])/180.0;
+
+  pwm_min[5] = pwm_min[0] + lround(CLAW_MIN_DEGREES*ticks_per_deg);
+  pwm_max[5] = pwm_min[0] + lround(CLAW_MAX_DEGREES*ticks_per_deg);
 
   Serial.print("min: "); Serial.print(pwm_min[0]);
   Serial.print(", mid: "); Serial.print(pwm_mid[0]);
