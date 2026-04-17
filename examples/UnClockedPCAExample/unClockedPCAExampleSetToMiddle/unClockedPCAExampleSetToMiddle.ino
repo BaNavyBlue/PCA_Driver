@@ -51,7 +51,7 @@ void setup()
     Serial.print(", max: "); Serial.print(pwm_max[0]);
     Serial.print(", 12BitRange: "); Serial.print(pwm_12BitRange[0]);
     Serial.print(", Degree Step Size: "); Serial.println(180.0/((float)pwm_max[0]));
-    pcaController->setALLPWM( 0, pwm_mid[0]);
+    pcaController->setAllPWM( 0, pwm_mid[0]);
     delay(1000);
 }
 
